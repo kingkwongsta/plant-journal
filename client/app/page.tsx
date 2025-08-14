@@ -12,7 +12,6 @@ import {
   Leaf,
   Calendar,
   TrendingUp,
-  Upload,
   Sparkles,
   BarChart3,
   MapPin,
@@ -154,11 +153,6 @@ export default function EdenLogAI() {
               <CardContent className="space-y-6">
                 {/* Photo upload area */}
                 <div className="border-2 border-dashed border-primary/30 rounded-lg p-12 text-center hover:border-primary/50 transition-colors cursor-pointer bg-primary/5">
-                  <Upload className="w-16 h-16 text-primary mx-auto mb-4" />
-                  <h3 className="text-xl font-semibold mb-2">Upload Garden Photos</h3>
-                  <p className="text-muted-foreground mb-6 max-w-md mx-auto">
-                    Drag and drop your photos here, or click to browse. Multiple photos welcome!
-                  </p>
                   <Button size="lg" className="bg-primary hover:bg-primary/90">
                     <Camera className="w-5 h-5 mr-2" />
                     Choose Photos
@@ -179,9 +173,9 @@ export default function EdenLogAI() {
                   />
                 </div>
 
-                <Button className="w-full" size="lg">
+                <Button className="w-1/3" size="lg">
                   <Sparkles className="w-5 h-5 mr-2" />
-                  Create AI-Powered Entry
+                  Submit
                   <ArrowRight className="w-5 h-5 ml-2" />
                 </Button>
               </CardContent>
