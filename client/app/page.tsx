@@ -22,6 +22,22 @@ import {
 } from "lucide-react"
 
 // Mock data for demonstration
+type QuickTag = {
+  key: string
+  label: string
+  emoji: string
+  snippet: string
+}
+
+const quickTags: QuickTag[] = [
+  { key: "harvest", label: "Harvest", emoji: "🍅", snippet: "Harvested today." },
+  { key: "bloom", label: "Bloom", emoji: "🌸", snippet: "Noticed new blooms." },
+  { key: "watering", label: "Watering", emoji: "💧", snippet: "Watered thoroughly." },
+  { key: "new-growth", label: "New Growth", emoji: "🌱", snippet: "New growth appeared." },
+  { key: "pest", label: "Pest Issue", emoji: "🐛", snippet: "Observed pest activity." },
+  { key: "sunny", label: "Sunny Day", emoji: "☀️", snippet: "Very sunny today." },
+]
+
 const mockEntries = [
   {
     id: 1,
@@ -97,24 +113,28 @@ export default function EdenLogAI() {
     }
   }
 
+  const insertQuickSnippet = (snippet: string, emoji?: string, label?: string) => {
+    const prefix = newEntry.notes.trim().length > 0 ? "\n" : ""
+    const text = emoji && label ? `${emoji} ${label}: ${snippet}` : snippet
+    setNewEntry((prev) => ({ ...prev, notes: prev.notes + `${prefix}${text}` }))
+  }
+
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
-      <header className="border-b border-border bg-card/50 backdrop-blur-sm sticky top-0 z-50">
+      <header className="border-b border-border bg-background sticky top-0 z-50">
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center">
-                <Leaf className="w-6 h-6 text-primary-foreground" />
+              <div className="w-9 h-9 border border-border rounded-md flex items-center justify-center">
+                <Leaf className="w-5 h-5 text-foreground" />
               </div>
-              <div>
-                <h1 className="text-2xl font-bold font-sans text-foreground">Plant Journal</h1>
-              </div>
+              <h1 className="text-xl font-semibold tracking-tight">Plant Journal</h1>
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
               <Button variant="outline" size="sm" onClick={() => setActiveTab("feed")}>
                 <Calendar className="w-4 h-4 mr-2" />
-                View Feed
+                Feed
               </Button>
               <Button variant="outline" size="sm" onClick={() => setActiveTab("insights")}>
                 <BarChart3 className="w-4 h-4 mr-2" />
@@ -150,7 +170,7 @@ export default function EdenLogAI() {
 
           <TabsContent value="journal" className="space-y-6">
             {/* Main logging interface */}
-            <Card className="border-2 border-primary/20">
+            <Card className="border">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-2xl">
                   <Sparkles className="w-6 h-6 text-primary" />
@@ -158,22 +178,19 @@ export default function EdenLogAI() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-6">
-                <div className="rounded-xl border bg-card/50">
+                <div className="rounded-lg border bg-card">
                   <div className="flex items-center justify-between px-4 pt-4">
-                    <label className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-                      <Sparkles className="w-4 h-4 text-primary" />
+                    <label className="text-sm font-medium text-muted-foreground">
                       What happened in your garden today?
                     </label>
-                    <Button size="sm" className="rounded-full px-4">
-                      <Sparkles className="w-4 h-4 mr-2" />
+                    <Button size="sm" className="px-4">
                       Submit
-                      <ArrowRight className="w-4 h-4 ml-2" />
                     </Button>
                   </div>
                   <div className="px-4 py-3">
                     <Textarea
                       placeholder="Write naturally... e.g., 'Harvested 5 huge beefsteak tomatoes today - they're perfectly ripe and smell amazing!' or 'My sunflowers finally bloomed! The biggest one is facing east and about 6 feet tall.'"
-                      className="min-h-40 md:min-h-48 resize-none rounded-lg border-0 bg-background/60 shadow-none focus-visible:ring-2 focus-visible:ring-primary/30"
+                      className="min-h-40 md:min-h-48 resize-none rounded-md border bg-background"
                       value={newEntry.notes}
                       onChange={(e) => setNewEntry({ ...newEntry, notes: e.target.value })}
                     />
@@ -200,13 +217,35 @@ export default function EdenLogAI() {
                     </div>
                   </div>
                 </div>
+                {/* Quick details subsection (moved inside the Create New Entry card) */}
+                <div className="rounded-lg border bg-card">
+                  <div className="px-4 pt-4">
+                    <label className="text-sm font-medium text-muted-foreground">Quick Details</label>
+                  </div>
+                  <div className="px-4 pb-4 pt-3">
+                    <div className="flex flex-wrap gap-3">
+                      {quickTags.map((tag) => (
+                        <Button
+                          key={tag.key}
+                          variant="outline"
+                          size="sm"
+                          className="rounded-md bg-transparent"
+                          onClick={() => insertQuickSnippet(tag.snippet, tag.emoji, tag.label)}
+                        >
+                          <span className="mr-2">{tag.emoji}</span>
+                          {tag.label}
+                        </Button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
               </CardContent>
             </Card>
 
             
 
             {/* Recent entries preview */}
-            <Card>
+            <Card className="border">
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <CardTitle>Recent Entries</CardTitle>
@@ -221,7 +260,7 @@ export default function EdenLogAI() {
                   {mockEntries.slice(0, 2).map((entry) => (
                     <div
                       key={entry.id}
-                      className="flex items-center gap-4 p-3 rounded-lg border hover:bg-muted/50 transition-colors"
+                      className="flex items-center gap-4 p-3 rounded-md border hover:bg-muted/50 transition-colors"
                     >
                       <Avatar className="w-12 h-12">
                         <AvatarImage src={entry.photos[0] || "/placeholder.svg"} alt={entry.plant} />
@@ -248,7 +287,7 @@ export default function EdenLogAI() {
           <TabsContent value="feed" className="space-y-6">
             <div className="grid gap-6">
               {mockEntries.map((entry) => (
-                <Card key={entry.id} className="overflow-hidden hover:shadow-lg transition-shadow">
+                <Card key={entry.id} className="overflow-hidden">
                   <CardHeader className="pb-3">
                     <div className="flex items-start justify-between">
                       <div className="flex items-center gap-3">
@@ -282,11 +321,11 @@ export default function EdenLogAI() {
                     <p className="text-foreground leading-relaxed">{entry.notes}</p>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                       {entry.photos.map((photo, index) => (
-                        <div key={index} className="aspect-square rounded-lg overflow-hidden bg-muted">
+                        <div key={index} className="aspect-square rounded-md overflow-hidden bg-muted">
                           <img
                             src={photo || "/placeholder.svg"}
                             alt={`${entry.plant} ${entry.type}`}
-                            className="w-full h-full object-cover hover:scale-105 transition-transform cursor-pointer"
+                            className="w-full h-full object-cover"
                           />
                         </div>
                       ))}
@@ -315,7 +354,7 @@ export default function EdenLogAI() {
           <TabsContent value="plants" className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {plantStats.map((plant, index) => (
-                <Card key={index} className="hover:shadow-lg transition-shadow">
+                <Card>
                   <CardHeader className="pb-3">
                     <div className="flex items-center justify-between">
                       <CardTitle className="text-lg">{plant.name}</CardTitle>
@@ -323,7 +362,7 @@ export default function EdenLogAI() {
                     </div>
                   </CardHeader>
                   <CardContent className="space-y-4">
-                    <div className="aspect-square rounded-lg overflow-hidden bg-muted">
+                    <div className="aspect-square rounded-md overflow-hidden bg-muted">
                       <img
                         src={`/abstract-geometric-shapes.png?height=200&width=200&query=${plant.name.toLowerCase()} garden plants`}
                         alt={plant.name}
@@ -340,7 +379,7 @@ export default function EdenLogAI() {
                         <span className="font-semibold">2 days ago</span>
                       </div>
                     </div>
-                    <Button variant="outline" className="w-full bg-transparent">
+                    <Button variant="outline" className="w-full">
                       <TrendingUp className="w-4 h-4 mr-2" />
                       View Timeline
                     </Button>
@@ -353,7 +392,7 @@ export default function EdenLogAI() {
           {/* Insights Tab */}
           <TabsContent value="insights" className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              <Card>
+              <Card className="border">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <TrendingUp className="w-5 h-5 text-chart-1" />
@@ -367,7 +406,7 @@ export default function EdenLogAI() {
                 </CardContent>
               </Card>
 
-              <Card>
+              <Card className="border">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <Droplets className="w-5 h-5 text-chart-4" />
@@ -381,7 +420,7 @@ export default function EdenLogAI() {
                 </CardContent>
               </Card>
 
-              <Card>
+              <Card className="border">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <Leaf className="w-5 h-5 text-chart-3" />
@@ -396,12 +435,12 @@ export default function EdenLogAI() {
               </Card>
             </div>
 
-            <Card>
+            <Card className="border">
               <CardHeader>
                 <CardTitle>Garden Activity Timeline</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="h-64 bg-muted rounded-lg flex items-center justify-center">
+                <div className="h-64 bg-muted rounded-md flex items-center justify-center">
                   <p className="text-muted-foreground">Interactive chart would go here</p>
                 </div>
               </CardContent>
