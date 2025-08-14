@@ -21,7 +21,7 @@
   --accent-foreground: oklch(0.99 0.005 110);
   --destructive: oklch(0.55 0.18 25);
   --destructive-foreground: oklch(0.99 0.005 110);
-  --border: oklch(0.9 0.01 105); /* Thin, low-contrast borders */
+  --border: oklch(0.86 0.01 105); /* Slightly darker for more contrast */
   --input: oklch(0.96 0.01 105);
   --ring: oklch(0.5 0.12 145 / 0.3);
   --chart-1: oklch(0.5 0.12 145); /* Greens preferred */
@@ -58,7 +58,7 @@
   --accent-foreground: var(--background);
   --destructive: oklch(0.6 0.18 25);
   --destructive-foreground: var(--foreground);
-  --border: oklch(0.24 0.01 135);
+  --border: oklch(0.28 0.01 135);
   --input: oklch(0.2 0.02 135);
   --ring: oklch(0.62 0.12 145 / 0.4);
   --chart-1: oklch(0.62 0.12 145);

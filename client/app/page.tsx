@@ -1,6 +1,7 @@
 "use client"
 
 import { useRef, useState } from "react"
+import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Textarea } from "@/components/ui/textarea"
@@ -124,23 +125,13 @@ export default function EdenLogAI() {
       {/* Header */}
       <header className="border-b border-border bg-background sticky top-0 z-50">
         <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
+          <div className="flex items-center justify-center">
+            <Link href="/" className="flex items-center gap-3">
               <div className="w-9 h-9 border border-border rounded-md flex items-center justify-center">
                 <Leaf className="w-5 h-5 text-foreground" />
               </div>
               <h1 className="text-xl font-semibold tracking-tight">Plant Journal</h1>
-            </div>
-            <div className="flex items-center gap-2">
-              <Button variant="outline" size="sm" onClick={() => setActiveTab("feed")}>
-                <Calendar className="w-4 h-4 mr-2" />
-                Feed
-              </Button>
-              <Button variant="outline" size="sm" onClick={() => setActiveTab("insights")}>
-                <BarChart3 className="w-4 h-4 mr-2" />
-                Insights
-              </Button>
-            </div>
+            </Link>
           </div>
         </div>
       </header>
@@ -179,13 +170,10 @@ export default function EdenLogAI() {
               </CardHeader>
               <CardContent className="space-y-6">
                 <div className="rounded-lg border bg-card">
-                  <div className="flex items-center justify-between px-4 pt-4">
+                  <div className="px-4 pt-4">
                     <label className="text-sm font-medium text-muted-foreground">
                       What happened in your garden today?
                     </label>
-                    <Button size="sm" className="px-4">
-                      Submit
-                    </Button>
                   </div>
                   <div className="px-4 py-3">
                     <Textarea
@@ -195,26 +183,29 @@ export default function EdenLogAI() {
                       onChange={(e) => setNewEntry({ ...newEntry, notes: e.target.value })}
                     />
                   </div>
-                  <div className="flex items-center gap-4 px-4 pb-4">
-                    <input
-                      ref={fileInputRef}
-                      type="file"
-                      accept="image/*"
-                      multiple
-                      className="hidden"
-                      onChange={(e) => handleFilesSelected(e.target.files)}
-                    />
-                    <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()}>
-                      <Camera className="w-4 h-4 mr-2" />
-                      Choose Photos
-                    </Button>
-                    <div className="flex items-center gap-2 overflow-x-auto">
-                      {newEntry.photos.map((src, index) => (
-                        <div key={index} className="h-12 w-12 rounded-md overflow-hidden bg-muted shrink-0">
-                          <img src={src} alt={`photo-${index}`} className="h-full w-full object-cover" />
-                        </div>
-                      ))}
+                  <div className="flex items-center justify-between px-4 pb-4">
+                    <div className="flex items-center gap-4">
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept="image/*"
+                        multiple
+                        className="hidden"
+                        onChange={(e) => handleFilesSelected(e.target.files)}
+                      />
+                      <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()}>
+                        <Camera className="w-4 h-4 mr-2" />
+                        Choose Photos
+                      </Button>
+                      <div className="flex items-center gap-2 overflow-x-auto">
+                        {newEntry.photos.map((src, index) => (
+                          <div key={index} className="h-12 w-12 rounded-md overflow-hidden bg-muted shrink-0">
+                            <img src={src} alt={`photo-${index}`} className="h-full w-full object-cover" />
+                          </div>
+                        ))}
+                      </div>
                     </div>
+                    <Button size="sm" className="px-4">Submit</Button>
                   </div>
                 </div>
                 {/* Quick details subsection (moved inside the Create New Entry card) */}
