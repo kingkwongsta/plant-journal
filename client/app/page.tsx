@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Textarea } from "@/components/ui/textarea"
@@ -61,8 +61,15 @@ const plantStats = [
 ]
 
 export default function EdenLogAI() {
-  const [activeTab, setActiveTab] = useState("journal") // Default to journal tab
-  const [newEntry, setNewEntry] = useState({ photos: [], notes: "" })
+  const [activeTab, setActiveTab] = useState("journal")
+  const [newEntry, setNewEntry] = useState<{ photos: string[]; notes: string }>({ photos: [], notes: "" })
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const handleFilesSelected = (files: FileList | null) => {
+    if (!files) return
+    const urls = Array.from(files).map((file) => URL.createObjectURL(file))
+    setNewEntry((prev) => ({ ...prev, photos: [...prev.photos, ...urls] }))
+  }
 
   const getEventIcon = (type: string) => {
     switch (type) {
@@ -151,33 +158,48 @@ export default function EdenLogAI() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-6">
-                {/* Photo upload area */}
-                <div className="border-2 border-dashed border-primary/30 rounded-lg p-12 text-center hover:border-primary/50 transition-colors cursor-pointer bg-primary/5">
-                  <Button size="lg" className="bg-primary hover:bg-primary/90">
-                    <Camera className="w-5 h-5 mr-2" />
-                    Choose Photos
-                  </Button>
+                <div className="rounded-xl border bg-card/50">
+                  <div className="flex items-center justify-between px-4 pt-4">
+                    <label className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                      <Sparkles className="w-4 h-4 text-primary" />
+                      What happened in your garden today?
+                    </label>
+                    <Button size="sm" className="rounded-full px-4">
+                      <Sparkles className="w-4 h-4 mr-2" />
+                      Submit
+                      <ArrowRight className="w-4 h-4 ml-2" />
+                    </Button>
+                  </div>
+                  <div className="px-4 py-3">
+                    <Textarea
+                      placeholder="Write naturally... e.g., 'Harvested 5 huge beefsteak tomatoes today - they're perfectly ripe and smell amazing!' or 'My sunflowers finally bloomed! The biggest one is facing east and about 6 feet tall.'"
+                      className="min-h-40 md:min-h-48 resize-none rounded-lg border-0 bg-background/60 shadow-none focus-visible:ring-2 focus-visible:ring-primary/30"
+                      value={newEntry.notes}
+                      onChange={(e) => setNewEntry({ ...newEntry, notes: e.target.value })}
+                    />
+                  </div>
+                  <div className="flex items-center gap-4 px-4 pb-4">
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/*"
+                      multiple
+                      className="hidden"
+                      onChange={(e) => handleFilesSelected(e.target.files)}
+                    />
+                    <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()}>
+                      <Camera className="w-4 h-4 mr-2" />
+                      Choose Photos
+                    </Button>
+                    <div className="flex items-center gap-2 overflow-x-auto">
+                      {newEntry.photos.map((src, index) => (
+                        <div key={index} className="h-12 w-12 rounded-md overflow-hidden bg-muted shrink-0">
+                          <img src={src} alt={`photo-${index}`} className="h-full w-full object-cover" />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
                 </div>
-
-                {/* Text input area */}
-                <div className="space-y-4">
-                  <label className="text-lg font-semibold flex items-center gap-2">
-                    <Sparkles className="w-5 h-5 text-primary" />
-                    What happened in your garden today?
-                  </label>
-                  <Textarea
-                    placeholder="Write naturally... e.g., 'Harvested 5 huge beefsteak tomatoes today - they're perfectly ripe and smell amazing!' or 'My sunflowers finally bloomed! The biggest one is facing east and about 6 feet tall.'"
-                    className="min-h-32 text-base resize-none border-2 focus:border-primary"
-                    value={newEntry.notes}
-                    onChange={(e) => setNewEntry({ ...newEntry, notes: e.target.value })}
-                  />
-                </div>
-
-                <Button className="w-1/3" size="lg">
-                  <Sparkles className="w-5 h-5 mr-2" />
-                  Submit
-                  <ArrowRight className="w-5 h-5 ml-2" />
-                </Button>
               </CardContent>
             </Card>
 
