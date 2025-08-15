@@ -49,7 +49,7 @@ def test_firestore():
     except Exception as e:
         return {"status": "Failed to connect to Firestore", "error": str(e)}
 
-@app.post("/journal-entries/")
+@app.post("/journal")
 def create_journal_entry(entry: JournalEntry):
     try:
         # Add a new document with a generated ID
@@ -59,7 +59,7 @@ def create_journal_entry(entry: JournalEntry):
     except Exception as e:
         return {"status": "error", "message": str(e)}
 
-@app.get("/journal-entries/")
+@app.get("/journal")
 def get_all_journal_entries():
     try:
         entries_ref = db.collection(u'journal_entries')
@@ -73,7 +73,7 @@ def get_all_journal_entries():
     except Exception as e:
         return {"status": "error", "message": str(e)}
 
-@app.get("/journal-entries/{entry_id}")
+@app.get("/journal/{entry_id}")
 def get_journal_entry(entry_id: str):
     try:
         doc_ref = db.collection(u'journal_entries').document(entry_id)
@@ -85,7 +85,7 @@ def get_journal_entry(entry_id: str):
     except Exception as e:
         return {"status": "error", "message": str(e)}
 
-@app.put("/journal-entries/{entry_id}")
+@app.put("/journal/{entry_id}")
 def update_journal_entry(entry_id: str, entry: UpdateJournalEntry):
     try:
         doc_ref = db.collection(u'journal_entries').document(entry_id)
