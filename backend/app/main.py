@@ -1,4 +1,5 @@
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from google.cloud import firestore
 from pydantic import BaseModel
 from typing import List, Optional
@@ -18,6 +19,18 @@ client = openai.OpenAI(
 
 # Initialize FastAPI app
 app = FastAPI()
+
+origins = [
+    "http://localhost:3000",
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # Initialize Firestore client
 # Make sure to set up Google Cloud authentication correctly in your environment

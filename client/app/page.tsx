@@ -20,6 +20,7 @@ import {
   Droplets,
   Thermometer,
   ArrowRight,
+  Loader2,
 } from "lucide-react"
 
 // Mock data for demonstration
@@ -39,9 +40,21 @@ const quickTags: QuickTag[] = [
   { key: "sunny", label: "Sunny Day", emoji: "☀️", snippet: "Very sunny today." },
 ]
 
+type JournalEntry = {
+  id: string
+  plant_name: string
+  plant_variety: string
+  date: string
+  notes: string
+  image_urls?: string[]
+  weather?: string
+  humidity?: number
+  event_type: string
+}
+
 const mockEntries = [
   {
-    id: 1,
+    id: "1",
     type: "harvest",
     plant: "Cherry Tomatoes",
     quantity: "2 lbs",
@@ -51,7 +64,7 @@ const mockEntries = [
     photos: ["/cherry-tomatoes-harvest.png"],
   },
   {
-    id: 2,
+    id: "2",
     type: "bloom",
     plant: "Sunflowers",
     notes: "Three massive sunflower heads opened today. They're facing east perfectly.",
@@ -60,7 +73,7 @@ const mockEntries = [
     photos: ["/sunflower-blooms-garden.png"],
   },
   {
-    id: 3,
+    id: "3",
     type: "snapshot",
     plant: "Herb Garden",
     notes: "Weekly check-in on the herb spiral. Basil is getting huge!",
@@ -81,6 +94,31 @@ export default function EdenLogAI() {
   const [activeTab, setActiveTab] = useState("journal")
   const [newEntry, setNewEntry] = useState<{ photos: string[]; notes: string }>({ photos: [], notes: "" })
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const [isLoading, setIsLoading] = useState(false)
+  const [journalEntries, setJournalEntries] = useState<JournalEntry[]>([])
+
+  const handleSubmit = async () => {
+    setIsLoading(true)
+    try {
+      const response = await fetch("http://localhost:8000/journal/from-text", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ text: newEntry.notes }),
+      })
+      if (response.ok) {
+        const result = await response.json()
+        setJournalEntries([result.data, ...journalEntries])
+        setNewEntry({ photos: [], notes: "" }) // Clear the input
+      } else {
+        console.error("Failed to create journal entry")
+      }
+    } catch (error) {
+      console.error("Error creating journal entry:", error)
+    }
+    setIsLoading(false)
+  }
 
   const handleFilesSelected = (files: FileList | null) => {
     if (!files) return
@@ -202,7 +240,10 @@ export default function EdenLogAI() {
                         ))}
                       </div>
                     </div>
-                    <Button size="sm" className="px-4">Submit</Button>
+                    <Button size="sm" className="px-4" onClick={handleSubmit} disabled={isLoading}>
+                      {isLoading ? <Loader2 className="animate-spin w-4 h-4 mr-2" /> : null}
+                      Submit
+                    </Button>
                   </div>
                 </div>
                 {/* Quick details subsection (moved inside the Create New Entry card) */}
@@ -245,25 +286,25 @@ export default function EdenLogAI() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  {mockEntries.slice(0, 2).map((entry) => (
+                  {journalEntries.slice(0, 2).map((entry) => (
                     <div
                       key={entry.id}
                       className="flex items-center gap-4 p-3 rounded-md border hover:bg-muted/50 transition-colors"
                     >
                       <Avatar className="w-12 h-12">
-                        <AvatarImage src={entry.photos[0] || "/placeholder.svg"} alt={entry.plant} />
-                        <AvatarFallback>{getEventIcon(entry.type)}</AvatarFallback>
+                        <AvatarImage src={entry.image_urls?.[0] || "/placeholder.svg"} alt={entry.plant_name} />
+                        <AvatarFallback>{getEventIcon(entry.event_type)}</AvatarFallback>
                       </Avatar>
                       <div className="flex-1">
                         <div className="flex items-center gap-2 mb-1">
-                          <span className="font-semibold">{entry.plant}</span>
-                          <Badge variant="secondary" className={getEventColor(entry.type)}>
-                            {entry.type}
+                          <span className="font-semibold">{entry.plant_name}</span>
+                          <Badge variant="secondary" className={getEventColor(entry.event_type)}>
+                            {entry.event_type}
                           </Badge>
                         </div>
                         <p className="text-sm text-muted-foreground line-clamp-1">{entry.notes}</p>
                       </div>
-                      <div className="text-sm text-muted-foreground">{entry.date}</div>
+                      <div className="text-sm text-muted-foreground">{new Date(entry.date).toLocaleDateString()}</div>
                     </div>
                   ))}
                 </div>
@@ -274,33 +315,33 @@ export default function EdenLogAI() {
           {/* Garden Feed Tab */}
           <TabsContent value="feed" className="space-y-6">
             <div className="grid gap-6">
-              {mockEntries.map((entry) => (
+              {journalEntries.map((entry) => (
                 <Card key={entry.id} className="overflow-hidden">
                   <CardHeader className="pb-3">
                     <div className="flex items-start justify-between">
                       <div className="flex items-center gap-3">
                         <Avatar className="w-12 h-12">
-                          <AvatarImage src={entry.photos[0] || "/placeholder.svg"} alt={entry.plant} />
-                          <AvatarFallback>{getEventIcon(entry.type)}</AvatarFallback>
+                          <AvatarImage src={entry.image_urls?.[0] || "/placeholder.svg"} alt={entry.plant_name} />
+                          <AvatarFallback>{getEventIcon(entry.event_type)}</AvatarFallback>
                         </Avatar>
                         <div>
-                          <CardTitle className="text-lg font-semibold">{entry.plant}</CardTitle>
+                          <CardTitle className="text-lg font-semibold">{entry.plant_name}</CardTitle>
                           <div className="flex items-center gap-2 mt-1">
-                            <Badge variant="secondary" className={getEventColor(entry.type)}>
-                              {entry.type}
+                            <Badge variant="secondary" className={getEventColor(entry.event_type)}>
+                              {entry.event_type}
                             </Badge>
-                            {entry.quantity && <Badge variant="outline">{entry.quantity}</Badge>}
+                            {/* {entry.quantity && <Badge variant="outline">{entry.quantity}</Badge>} */}
                           </div>
                         </div>
                       </div>
                       <div className="text-right text-sm text-muted-foreground">
                         <div className="flex items-center gap-1 mb-1">
                           <Calendar className="w-3 h-3" />
-                          {entry.date}
+                          {new Date(entry.date).toLocaleDateString()}
                         </div>
                         <div className="flex items-center gap-1">
                           <Sun className="w-3 h-3" />
-                          {entry.weather.temp}
+                          {entry.weather}
                         </div>
                       </div>
                     </div>
@@ -308,11 +349,11 @@ export default function EdenLogAI() {
                   <CardContent className="space-y-4">
                     <p className="text-foreground leading-relaxed">{entry.notes}</p>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                      {entry.photos.map((photo, index) => (
+                      {entry.image_urls?.map((photo, index) => (
                         <div key={index} className="aspect-square rounded-md overflow-hidden bg-muted">
                           <img
                             src={photo || "/placeholder.svg"}
-                            alt={`${entry.plant} ${entry.type}`}
+                            alt={`${entry.plant_name} ${entry.event_type}`}
                             className="w-full h-full object-cover"
                           />
                         </div>
@@ -321,11 +362,11 @@ export default function EdenLogAI() {
                     <div className="flex items-center gap-4 pt-2 text-sm text-muted-foreground">
                       <div className="flex items-center gap-1">
                         <Thermometer className="w-3 h-3" />
-                        {entry.weather.temp}
+                        {/* {entry.weather.temp} */}
                       </div>
                       <div className="flex items-center gap-1">
                         <Sun className="w-3 h-3" />
-                        {entry.weather.condition}
+                        {/* {entry.weather.condition} */}
                       </div>
                       <div className="flex items-center gap-1">
                         <MapPin className="w-3 h-3" />
@@ -342,7 +383,7 @@ export default function EdenLogAI() {
           <TabsContent value="plants" className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {plantStats.map((plant, index) => (
-                <Card>
+                <Card key={plant.name}>
                   <CardHeader className="pb-3">
                     <div className="flex items-center justify-between">
                       <CardTitle className="text-lg">{plant.name}</CardTitle>
