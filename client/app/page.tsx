@@ -1,6 +1,6 @@
 "use client"
 
-import { useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -25,19 +25,22 @@ import {
 
 // Mock data for demonstration
 type QuickTag = {
-  key: string
-  label: string
+  id?: string
+  key?: string
+  label?: string
   emoji: string
-  snippet: string
+  snippet?: string
+  text?: string
 }
 
-const quickTags: QuickTag[] = [
-  { key: "harvest", label: "Harvest", emoji: "🍅", snippet: "Harvested today." },
-  { key: "bloom", label: "Bloom", emoji: "🌸", snippet: "Noticed new blooms." },
-  { key: "watering", label: "Watering", emoji: "💧", snippet: "Watered thoroughly." },
-  { key: "new-growth", label: "New Growth", emoji: "🌱", snippet: "New growth appeared." },
-  { key: "pest", label: "Pest Issue", emoji: "🐛", snippet: "Observed pest activity." },
-  { key: "sunny", label: "Sunny Day", emoji: "☀️", snippet: "Very sunny today." },
+// Fallback defaults used only if the backend is unavailable or returns an empty list
+const defaultQuickTags: QuickTag[] = [
+  { key: "harvest", label: "Harvest", emoji: "🍅", snippet: "Harvested today.", text: "Harvest" },
+  { key: "bloom", label: "Bloom", emoji: "🌸", snippet: "Noticed new blooms.", text: "Bloom" },
+  { key: "watering", label: "Watering", emoji: "💧", snippet: "Watered thoroughly.", text: "Watering" },
+  { key: "new-growth", label: "New Growth", emoji: "🌱", snippet: "New growth appeared.", text: "New Growth" },
+  { key: "pest", label: "Pest Issue", emoji: "🐛", snippet: "Observed pest activity.", text: "Pest Issue" },
+  { key: "sunny", label: "Sunny Day", emoji: "☀️", snippet: "Very sunny today.", text: "Sunny Day" },
 ]
 
 type JournalEntry = {
@@ -96,6 +99,8 @@ export default function EdenLogAI() {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [journalEntries, setJournalEntries] = useState<JournalEntry[]>([])
+  const [quickDetails, setQuickDetails] = useState<QuickTag[]>([])
+  const [isSavingQuick, setIsSavingQuick] = useState(false)
 
   const handleSubmit = async () => {
     setIsLoading(true)
@@ -156,6 +161,124 @@ export default function EdenLogAI() {
     const prefix = newEntry.notes.trim().length > 0 ? "\n" : ""
     const text = emoji && label ? `${emoji} ${label}: ${snippet}` : snippet
     setNewEntry((prev) => ({ ...prev, notes: prev.notes + `${prefix}${text}` }))
+  }
+
+  // API interaction for Quick Details
+  useEffect(() => {
+    const fetchQuickDetails = async () => {
+      try {
+        const response = await fetch("http://localhost:8000/quick-details")
+        if (response.ok) {
+          const data = await response.json()
+          if (data.length === 0) {
+            setQuickDetails(defaultQuickTags)
+          } else {
+            const normalized = data.map((it: any) => ({
+              id: it.id,
+              emoji: it.emoji,
+              text: it.text,
+              label: it.text,
+              snippet: it.text, // Assuming snippet is the same as text
+            }))
+            setQuickDetails(normalized)
+          }
+        } else {
+          setQuickDetails(defaultQuickTags)
+        }
+      } catch (error) {
+        console.error("Failed to fetch quick details:", error)
+        setQuickDetails(defaultQuickTags)
+      }
+    }
+    fetchQuickDetails()
+  }, [])
+
+  const handleAddQuick = async () => {
+    setIsSavingQuick(true)
+    try {
+      await fetch("http://localhost:8000/quick-details", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ emoji: "🌱", text: "New Detail" }),
+      })
+      // Refetch after adding
+      const response = await fetch("http://localhost:8000/quick-details")
+      const data = await response.json()
+      const normalized = data.map((it: any) => ({
+        id: it.id,
+        emoji: it.emoji,
+        text: it.text,
+        label: it.text,
+        snippet: it.text,
+      }))
+      setQuickDetails(normalized)
+    } finally {
+      setIsSavingQuick(false)
+    }
+  }
+
+  const handleUpdateQuick = async (id: string, data: { emoji?: string; text?: string }) => {
+    await fetch(`http://localhost:8000/quick-details/${id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    })
+    // Optimistic update
+    setQuickDetails((prev) =>
+      prev.map((item) => (item.id === id ? { ...item, ...data } : item))
+    )
+  }
+
+  const handleDeleteQuick = async (id: string) => {
+    await fetch(`http://localhost:8000/quick-details/${id}`, {
+      method: "DELETE",
+    })
+    // Optimistic update
+    setQuickDetails((prev) => prev.filter((item) => item.id !== id))
+  }
+
+  // Inline editor component for managing quick details
+  function QuickDetailsEditor({
+    items,
+    onAdd,
+    onUpdate,
+    onDelete,
+    isSaving,
+  }: {
+    items: QuickTag[]
+    onAdd: () => void
+    onUpdate: (id: string, data: { emoji?: string; text?: string }) => Promise<void>
+    onDelete: (id: string) => Promise<void>
+    isSaving: boolean
+  }) {
+    return (
+      <div className="flex flex-col gap-2">
+        <div className="flex flex-wrap gap-2">
+          {items.map((it) => (
+            <div key={it.id ?? it.text} className="flex items-center gap-1 border rounded-md px-2 py-1 bg-background">
+              <input
+                className="w-10 text-center bg-transparent outline-none"
+                value={it.emoji}
+                onChange={(e) => it.id && onUpdate(it.id, { emoji: e.target.value })}
+              />
+              <input
+                className="w-32 bg-transparent outline-none"
+                value={it.text ?? ""}
+                onChange={(e) => it.id && onUpdate(it.id, { text: e.target.value })}
+              />
+              {it.id && (
+                <Button size="sm" variant="ghost" onClick={() => onDelete(it.id!)}>
+                  Remove
+                </Button>
+              )}
+            </div>
+          ))}
+        </div>
+        <Button variant="outline" size="sm" onClick={onAdd} disabled={isSaving}>
+          Add Quick Detail
+        </Button>
+      </div>
+    )
   }
 
   return (
@@ -251,21 +374,28 @@ export default function EdenLogAI() {
                   <div className="px-4 pt-4">
                     <label className="text-sm font-medium text-muted-foreground">Quick Details</label>
                   </div>
-                  <div className="px-4 pb-4 pt-3">
+                  <div className="px-4 pb-4 pt-3 space-y-3">
                     <div className="flex flex-wrap gap-3">
-                      {quickTags.map((tag) => (
+                      {quickDetails.map((tag) => (
                         <Button
-                          key={tag.key}
+                          key={tag.id ?? tag.key ?? tag.text}
                           variant="outline"
                           size="sm"
                           className="rounded-md bg-transparent"
-                          onClick={() => insertQuickSnippet(tag.snippet, tag.emoji, tag.label)}
+                          onClick={() => insertQuickSnippet(tag.snippet ?? tag.text ?? "", tag.emoji, tag.text)}
                         >
                           <span className="mr-2">{tag.emoji}</span>
-                          {tag.label}
+                          {tag.text}
                         </Button>
                       ))}
                     </div>
+                    <QuickDetailsEditor
+                      items={quickDetails}
+                      onAdd={handleAddQuick}
+                      onUpdate={handleUpdateQuick}
+                      onDelete={handleDeleteQuick}
+                      isSaving={isSavingQuick}
+                    />
                   </div>
                 </div>
               </CardContent>

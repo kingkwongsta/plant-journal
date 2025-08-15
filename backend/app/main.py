@@ -64,6 +64,14 @@ class UpdateJournalEntry(BaseModel):
 class JournalText(BaseModel):
     text: str
 
+class QuickDetail(BaseModel):
+    emoji: str
+    text: str
+
+class UpdateQuickDetail(BaseModel):
+    emoji: Optional[str] = None
+    text: Optional[str] = None
+
 @app.get("/")
 def read_root():
     return {"message": "Welcome to the Plant Journal API"}
@@ -126,6 +134,46 @@ def update_journal_entry(entry_id: str, entry: UpdateJournalEntry):
     except Exception as e:
         return {"status": "error", "message": str(e)}
 
+@app.get("/quick-details")
+def get_quick_details():
+    try:
+        details_ref = db.collection(u'quick_details')
+        docs = details_ref.stream()
+        details = []
+        for doc in docs:
+            detail_data = doc.to_dict()
+            detail_data['id'] = doc.id
+            details.append(detail_data)
+        return details
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+@app.post("/quick-details")
+def create_quick_detail(detail: QuickDetail):
+    try:
+        doc_ref = db.collection(u'quick_details').document()
+        doc_ref.set(detail.dict())
+        return {"status": "success", "id": doc_ref.id}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+@app.put("/quick-details/{detail_id}")
+def update_quick_detail(detail_id: str, detail: UpdateQuickDetail):
+    try:
+        doc_ref = db.collection(u'quick_details').document(detail_id)
+        doc_ref.update(detail.dict(exclude_unset=True))
+        return {"status": "success", "id": detail_id}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+@app.delete("/quick-details/{detail_id}")
+def delete_quick_detail(detail_id: str):
+    try:
+        db.collection(u'quick_details').document(detail_id).delete()
+        return {"status": "success"}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
 @app.post("/journal/from-text")
 def create_journal_from_text(journal_text: JournalText):
     try:
@@ -147,7 +195,7 @@ def create_journal_from_text(journal_text: JournalText):
         """
 
         completion = client.chat.completions.create(
-            model="openai/gpt-5-nano",
+            model="mistralai/ministral-3b",
             messages=[
                 {
                     "role": "user",
