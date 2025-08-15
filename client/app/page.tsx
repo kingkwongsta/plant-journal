@@ -4,6 +4,13 @@ import { useEffect, useMemo, useRef, useState } from "react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -21,7 +28,11 @@ import {
   Thermometer,
   ArrowRight,
   Loader2,
+  Settings,
+  X,
 } from "lucide-react"
+import { fetchWithLogging } from "@/lib/api"
+import imageCompression from "browser-image-compression"
 
 // Mock data for demonstration
 type QuickTag = {
@@ -95,40 +106,100 @@ const plantStats = [
 
 export default function EdenLogAI() {
   const [activeTab, setActiveTab] = useState("journal")
-  const [newEntry, setNewEntry] = useState<{ photos: string[]; notes: string }>({ photos: [], notes: "" })
+  const [newEntry, setNewEntry] = useState<{ photos: File[]; notes: string }>({ photos: [], notes: "" })
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [isLoading, setIsLoading] = useState(false)
+  const [isCompressing, setIsCompressing] = useState(false)
+  const [isSuccess, setIsSuccess] = useState(false)
   const [journalEntries, setJournalEntries] = useState<JournalEntry[]>([])
   const [quickDetails, setQuickDetails] = useState<QuickTag[]>([])
-  const [isSavingQuick, setIsSavingQuick] = useState(false)
+
+  useEffect(() => {
+    const fetchJournalEntries = async () => {
+      try {
+        const response = await fetchWithLogging("http://localhost:8000/journal");
+        if (response.ok) {
+          const data = await response.json();
+          setJournalEntries(data);
+        } else {
+          console.error("Failed to fetch journal entries");
+        }
+      } catch (error) {
+        console.error("Error fetching journal entries:", error);
+      }
+    };
+    fetchJournalEntries();
+  }, []);
 
   const handleSubmit = async () => {
-    setIsLoading(true)
     try {
-      const response = await fetch("http://localhost:8000/journal/from-text", {
+      const entry = {
+        notes: newEntry.notes,
+        date: new Date().toISOString(),
+        plant_name: "",
+        plant_variety: "",
+        event_type: "",
+        quantity: "",
+        weather: "",
+        humidity: null,
+      }
+
+      const formData = new FormData()
+      formData.append("entry_data", JSON.stringify(entry))
+      newEntry.photos.forEach((photo) => {
+        formData.append("images", photo)
+      })
+
+      setIsLoading(true);
+      const response = await fetchWithLogging("http://localhost:8000/journal/upload", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ text: newEntry.notes }),
+        body: formData,
       })
       if (response.ok) {
         const result = await response.json()
-        setJournalEntries([result.data, ...journalEntries])
+        setJournalEntries([result.entry, ...journalEntries])
         setNewEntry({ photos: [], notes: "" }) // Clear the input
+        setIsSuccess(true)
       } else {
         console.error("Failed to create journal entry")
       }
     } catch (error) {
       console.error("Error creating journal entry:", error)
+    } finally {
+      setIsLoading(false);
     }
-    setIsLoading(false)
   }
 
-  const handleFilesSelected = (files: FileList | null) => {
+  const handleFilesSelected = async (files: FileList | null) => {
     if (!files) return
-    const urls = Array.from(files).map((file) => URL.createObjectURL(file))
-    setNewEntry((prev) => ({ ...prev, photos: [...prev.photos, ...urls] }))
+
+    setIsCompressing(true)
+    console.log("Image compression started...")
+
+    const options = {
+      maxSizeMB: 2,
+      maxWidthOrHeight: 1920,
+      useWebWorker: true,
+    }
+
+    try {
+      const compressedFiles = await Promise.all(
+        Array.from(files).map((file) => imageCompression(file, options))
+      )
+      setNewEntry((prev) => ({ ...prev, photos: [...prev.photos, ...compressedFiles] }))
+    } catch (error) {
+      console.error("Error compressing images:", error)
+    } finally {
+      setIsCompressing(false)
+      console.log("Image compression finished.")
+    }
+  }
+
+  const removePhoto = (indexToRemove: number) => {
+    setNewEntry((prev) => ({
+      ...prev,
+      photos: prev.photos.filter((_, index) => index !== indexToRemove),
+    }))
   }
 
   const getEventIcon = (type: string) => {
@@ -167,7 +238,7 @@ export default function EdenLogAI() {
   useEffect(() => {
     const fetchQuickDetails = async () => {
       try {
-        const response = await fetch("http://localhost:8000/quick-details")
+        const response = await fetchWithLogging("http://localhost:8000/quick-details")
         if (response.ok) {
           const data = await response.json()
           if (data.length === 0) {
@@ -193,106 +264,36 @@ export default function EdenLogAI() {
     fetchQuickDetails()
   }, [])
 
-  const handleAddQuick = async () => {
-    setIsSavingQuick(true)
-    try {
-      await fetch("http://localhost:8000/quick-details", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ emoji: "🌱", text: "New Detail" }),
-      })
-      // Refetch after adding
-      const response = await fetch("http://localhost:8000/quick-details")
-      const data = await response.json()
-      const normalized = data.map((it: any) => ({
-        id: it.id,
-        emoji: it.emoji,
-        text: it.text,
-        label: it.text,
-        snippet: it.text,
-      }))
-      setQuickDetails(normalized)
-    } finally {
-      setIsSavingQuick(false)
-    }
-  }
-
-  const handleUpdateQuick = async (id: string, data: { emoji?: string; text?: string }) => {
-    await fetch(`http://localhost:8000/quick-details/${id}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(data),
-    })
-    // Optimistic update
-    setQuickDetails((prev) =>
-      prev.map((item) => (item.id === id ? { ...item, ...data } : item))
-    )
-  }
-
-  const handleDeleteQuick = async (id: string) => {
-    await fetch(`http://localhost:8000/quick-details/${id}`, {
-      method: "DELETE",
-    })
-    // Optimistic update
-    setQuickDetails((prev) => prev.filter((item) => item.id !== id))
-  }
-
-  // Inline editor component for managing quick details
-  function QuickDetailsEditor({
-    items,
-    onAdd,
-    onUpdate,
-    onDelete,
-    isSaving,
-  }: {
-    items: QuickTag[]
-    onAdd: () => void
-    onUpdate: (id: string, data: { emoji?: string; text?: string }) => Promise<void>
-    onDelete: (id: string) => Promise<void>
-    isSaving: boolean
-  }) {
-    return (
-      <div className="flex flex-col gap-2">
-        <div className="flex flex-wrap gap-2">
-          {items.map((it) => (
-            <div key={it.id ?? it.text} className="flex items-center gap-1 border rounded-md px-2 py-1 bg-background">
-              <input
-                className="w-10 text-center bg-transparent outline-none"
-                value={it.emoji}
-                onChange={(e) => it.id && onUpdate(it.id, { emoji: e.target.value })}
-              />
-              <input
-                className="w-32 bg-transparent outline-none"
-                value={it.text ?? ""}
-                onChange={(e) => it.id && onUpdate(it.id, { text: e.target.value })}
-              />
-              {it.id && (
-                <Button size="sm" variant="ghost" onClick={() => onDelete(it.id!)}>
-                  Remove
-                </Button>
-              )}
-            </div>
-          ))}
-        </div>
-        <Button variant="outline" size="sm" onClick={onAdd} disabled={isSaving}>
-          Add Quick Detail
-        </Button>
-      </div>
-    )
-  }
-
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
       <header className="border-b border-border bg-background sticky top-0 z-50">
         <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center justify-center">
+          <div className="flex items-center justify-between">
+            <div className="w-24"></div> {/* Left spacer */}
             <Link href="/" className="flex items-center">
               <h1 className="text-xl font-semibold tracking-tight">Plant Journal</h1>
             </Link>
+            <div className="w-24 flex justify-end">
+              <Link href="/admin">
+                <Button variant="ghost" size="sm">
+                  <Settings className="w-4 h-4 mr-2" />
+                  Admin
+                </Button>
+              </Link>
+            </div>
           </div>
         </div>
       </header>
+
+      <Dialog open={isSuccess} onOpenChange={setIsSuccess}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Success!</DialogTitle>
+            <DialogDescription>Your new journal entry has been created.</DialogDescription>
+          </DialogHeader>
+        </DialogContent>
+      </Dialog>
 
       <div className="container mx-auto px-4 py-6">
         {activeTab === "journal" && null}
@@ -355,10 +356,21 @@ export default function EdenLogAI() {
                         <Camera className="w-4 h-4 mr-2" />
                         Choose Photos
                       </Button>
+                      {isCompressing && <Loader2 className="w-4 h-4 animate-spin" />}
                       <div className="flex items-center gap-2 overflow-x-auto">
-                        {newEntry.photos.map((src, index) => (
-                          <div key={index} className="h-12 w-12 rounded-md overflow-hidden bg-muted shrink-0">
-                            <img src={src} alt={`photo-${index}`} className="h-full w-full object-cover" />
+                        {newEntry.photos.map((file, index) => (
+                          <div key={index} className="relative h-12 w-12 rounded-md overflow-hidden bg-muted shrink-0">
+                            <img
+                              src={URL.createObjectURL(file)}
+                              alt={`photo-${index}`}
+                              className="h-full w-full object-cover"
+                            />
+                            <button
+                              onClick={() => removePhoto(index)}
+                              className="absolute top-0 right-0 bg-black bg-opacity-50 text-white rounded-full p-0.5"
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
                           </div>
                         ))}
                       </div>
@@ -374,7 +386,7 @@ export default function EdenLogAI() {
                   <div className="px-4 pt-4">
                     <label className="text-sm font-medium text-muted-foreground">Quick Details</label>
                   </div>
-                  <div className="px-4 pb-4 pt-3 space-y-3">
+                  <div className="px-4 pb-4 pt-3">
                     <div className="flex flex-wrap gap-3">
                       {quickDetails.map((tag) => (
                         <Button
@@ -389,13 +401,6 @@ export default function EdenLogAI() {
                         </Button>
                       ))}
                     </div>
-                    <QuickDetailsEditor
-                      items={quickDetails}
-                      onAdd={handleAddQuick}
-                      onUpdate={handleUpdateQuick}
-                      onDelete={handleDeleteQuick}
-                      isSaving={isSavingQuick}
-                    />
                   </div>
                 </div>
               </CardContent>

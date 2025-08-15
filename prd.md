@@ -65,3 +65,77 @@ The core of EdenLog AI is its ability to understand unstructured, conversational
   - **Robust API**: Versioned, paginated RESTful API with comprehensive Pydantic validation for all incoming and outgoing data.
   - **Background Jobs**: Future-ready for tasks like generating weekly summary reports or AI-driven pest identification from photos.
   - **Enterprise-Grade Foundation**: Retains JWT-based auth, structured logging, health checks, comprehensive testing (unit, integration, E2E), and Dockerized deployment.
+
+# Codebase Structure
+
+## `backend/`
+
+This directory contains the FastAPI application that powers the AI and data management features of EdenLog. The backend is responsible for processing user input, interfacing with the Large Language Model (LLM), and managing the database.
+
+### `backend/app/`
+
+The core of the backend application.
+
+-   `main.py`: The main FastAPI application file. It defines all API endpoints, handles request validation with Pydantic, and orchestrates the logic for processing user input. This includes:
+    -   Receiving image files and JSON data from the client.
+    -   Uploading and hosting images on Google Cloud Storage.
+    -   Calling a Large Language Model (LLM) API via OpenRouter with a carefully engineered prompt to parse unstructured text.
+    -   Parsing the LLM's structured JSON response.
+    -   Saving the final, structured data to a Google Cloud Firestore database.
+    -   Providing standard CRUD endpoints for journal entries and other application data.
+
+### `backend/` (Root)
+
+-   `requirements.txt`: Lists all Python dependencies for the backend, such as `fastapi`, `uvicorn`, `pydantic`, `google-cloud-firestore`, and the `openai` client library (for OpenRouter).
+-   `seed_api.py`: A utility script for seeding the database with initial data or for testing the API endpoints. It is not part of the main application flow.
+-   `venv/`: The Python virtual environment directory. **The LLM should never modify the contents of this folder.**
+
+---
+
+## `client/`
+
+This directory contains the Next.js frontend application. It's responsible for the user interface and for communicating with the backend API.
+
+### `client/app/`
+
+The main application directory, following the Next.js App Router structure.
+
+-   `page.tsx`: The main landing page and primary user interface for creating journal entries. This is where users upload photos and write their notes.
+-   `layout.tsx`: The root layout for the application. It includes the main HTML structure, global styles, and any shared UI components like a navigation bar.
+-   `globals.css`: Global styles for the application, primarily using Tailwind CSS directives.
+-   `admin/`: Contains the admin dashboard pages.
+    -   `page.tsx`: The main admin dashboard page.
+    -   `layout.tsx`: The layout for the admin section.
+
+### `client/components/`
+
+Contains reusable React components used throughout the application.
+
+-   `ui/`: A collection of UI components, likely built using a library like ShadCN/UI. These are general-purpose components like `Button`, `Card`, `Badge`, etc.
+
+### `client/lib/`
+
+Contains utility functions and library code for the frontend.
+
+-   `api.ts`: A key file that centralizes all communication with the backend API. It should contain typed functions for making API requests (e.g., `createJournalEntry`, `getJournalEntries`) and handle things like setting authentication headers.
+-   `utils.ts`: A collection of miscellaneous utility functions used throughout the frontend.
+
+### `client/public/`
+
+Contains static assets like images, icons, and fonts.
+
+### `client/` (Root)
+
+-   `package.json`: Defines the project's dependencies, scripts (like `dev`, `build`, `start`), and other metadata.
+-   `next.config.ts`: The configuration file for Next.js.
+-   `tsconfig.json`: The TypeScript configuration file.
+-   `postcss.config.mjs` & `tailwind.config.ts`: Configuration files for PostCSS and Tailwind CSS.
+
+---
+
+# Development Workflow
+
+The `start-dev.sh` script in the root directory is used to start the development environment. It concurrently runs the Next.js development server and the FastAPI backend server.
+
+-   The client runs on `http://localhost:3000`.
+-   The backend runs on `http://localhost:8000`.
