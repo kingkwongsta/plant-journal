@@ -60,7 +60,6 @@ bucket_name = os.getenv("FIREBASE_STORAGE_BUCKET") # Replace with your bucket na
 if not bucket_name:
     raise ValueError("FIREBASE_STORAGE_BUCKET environment variable not set")
 
-cred = credentials.Certificate(os.getenv("GOOGLE_APPLICATION_CREDENTIALS"))
 storage_client = storage.Client()
 bucket = storage_client.bucket(bucket_name)
 
