@@ -1,4 +1,4 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from google.cloud import firestore
 from pydantic import BaseModel
@@ -8,8 +8,14 @@ import os
 import openai
 import json
 from dotenv import load_dotenv
+import logging
+import time
 
 load_dotenv()
+
+# Configure logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
 
 # Initialize OpenAI client for OpenRouter
 client = openai.OpenAI(
@@ -19,6 +25,14 @@ client = openai.OpenAI(
 
 # Initialize FastAPI app
 app = FastAPI()
+
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    start_time = time.time()
+    response = await call_next(request)
+    process_time = time.time() - start_time
+    logger.info(f"method={request.method} path='{request.url.path}' status_code={response.status_code} process_time={process_time:.4f}s")
+    return response
 
 origins = [
     "http://localhost:3000",
