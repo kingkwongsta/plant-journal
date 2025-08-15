@@ -1,9 +1,16 @@
 "use client"
 
-import { useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -20,28 +27,48 @@ import {
   Droplets,
   Thermometer,
   ArrowRight,
+  Loader2,
+  Settings,
+  X,
 } from "lucide-react"
+import { fetchWithLogging } from "@/lib/api"
+import imageCompression from "browser-image-compression"
 
 // Mock data for demonstration
 type QuickTag = {
-  key: string
-  label: string
+  id?: string
+  key?: string
+  label?: string
   emoji: string
-  snippet: string
+  snippet?: string
+  text?: string
 }
 
-const quickTags: QuickTag[] = [
-  { key: "harvest", label: "Harvest", emoji: "🍅", snippet: "Harvested today." },
-  { key: "bloom", label: "Bloom", emoji: "🌸", snippet: "Noticed new blooms." },
-  { key: "watering", label: "Watering", emoji: "💧", snippet: "Watered thoroughly." },
-  { key: "new-growth", label: "New Growth", emoji: "🌱", snippet: "New growth appeared." },
-  { key: "pest", label: "Pest Issue", emoji: "🐛", snippet: "Observed pest activity." },
-  { key: "sunny", label: "Sunny Day", emoji: "☀️", snippet: "Very sunny today." },
+// Fallback defaults used only if the backend is unavailable or returns an empty list
+const defaultQuickTags: QuickTag[] = [
+  { key: "harvest", label: "Harvest", emoji: "🍅", snippet: "Harvested today.", text: "Harvest" },
+  { key: "bloom", label: "Bloom", emoji: "🌸", snippet: "Noticed new blooms.", text: "Bloom" },
+  { key: "watering", label: "Watering", emoji: "💧", snippet: "Watered thoroughly.", text: "Watering" },
+  { key: "new-growth", label: "New Growth", emoji: "🌱", snippet: "New growth appeared.", text: "New Growth" },
+  { key: "pest", label: "Pest Issue", emoji: "🐛", snippet: "Observed pest activity.", text: "Pest Issue" },
+  { key: "sunny", label: "Sunny Day", emoji: "☀️", snippet: "Very sunny today.", text: "Sunny Day" },
 ]
+
+type JournalEntry = {
+  id: string
+  plant_name: string
+  plant_variety: string
+  date: string
+  notes: string
+  image_urls?: string[]
+  weather?: string
+  humidity?: number
+  event_type: string
+}
 
 const mockEntries = [
   {
-    id: 1,
+    id: "1",
     type: "harvest",
     plant: "Cherry Tomatoes",
     quantity: "2 lbs",
@@ -51,7 +78,7 @@ const mockEntries = [
     photos: ["/cherry-tomatoes-harvest.png"],
   },
   {
-    id: 2,
+    id: "2",
     type: "bloom",
     plant: "Sunflowers",
     notes: "Three massive sunflower heads opened today. They're facing east perfectly.",
@@ -60,7 +87,7 @@ const mockEntries = [
     photos: ["/sunflower-blooms-garden.png"],
   },
   {
-    id: 3,
+    id: "3",
     type: "snapshot",
     plant: "Herb Garden",
     notes: "Weekly check-in on the herb spiral. Basil is getting huge!",
@@ -79,13 +106,100 @@ const plantStats = [
 
 export default function EdenLogAI() {
   const [activeTab, setActiveTab] = useState("journal")
-  const [newEntry, setNewEntry] = useState<{ photos: string[]; notes: string }>({ photos: [], notes: "" })
+  const [newEntry, setNewEntry] = useState<{ photos: File[]; notes: string }>({ photos: [], notes: "" })
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const [isLoading, setIsLoading] = useState(false)
+  const [isCompressing, setIsCompressing] = useState(false)
+  const [isSuccess, setIsSuccess] = useState(false)
+  const [journalEntries, setJournalEntries] = useState<JournalEntry[]>([])
+  const [quickDetails, setQuickDetails] = useState<QuickTag[]>([])
 
-  const handleFilesSelected = (files: FileList | null) => {
+  useEffect(() => {
+    const fetchJournalEntries = async () => {
+      try {
+        const response = await fetchWithLogging("http://localhost:8000/journal");
+        if (response.ok) {
+          const data = await response.json();
+          setJournalEntries(data);
+        } else {
+          console.error("Failed to fetch journal entries");
+        }
+      } catch (error) {
+        console.error("Error fetching journal entries:", error);
+      }
+    };
+    fetchJournalEntries();
+  }, []);
+
+  const handleSubmit = async () => {
+    try {
+      const entry = {
+        notes: newEntry.notes,
+        date: new Date().toISOString(),
+        plant_name: "",
+        plant_variety: "",
+        event_type: "",
+        quantity: "",
+        weather: "",
+        humidity: null,
+      }
+
+      const formData = new FormData()
+      formData.append("entry_data", JSON.stringify(entry))
+      newEntry.photos.forEach((photo) => {
+        formData.append("images", photo)
+      })
+
+      setIsLoading(true);
+      const response = await fetchWithLogging("http://localhost:8000/journal/upload", {
+        method: "POST",
+        body: formData,
+      })
+      if (response.ok) {
+        const result = await response.json()
+        setJournalEntries([result.entry, ...journalEntries])
+        setNewEntry({ photos: [], notes: "" }) // Clear the input
+        setIsSuccess(true)
+      } else {
+        console.error("Failed to create journal entry")
+      }
+    } catch (error) {
+      console.error("Error creating journal entry:", error)
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  const handleFilesSelected = async (files: FileList | null) => {
     if (!files) return
-    const urls = Array.from(files).map((file) => URL.createObjectURL(file))
-    setNewEntry((prev) => ({ ...prev, photos: [...prev.photos, ...urls] }))
+
+    setIsCompressing(true)
+    console.log("Image compression started...")
+
+    const options = {
+      maxSizeMB: 2,
+      maxWidthOrHeight: 1920,
+      useWebWorker: true,
+    }
+
+    try {
+      const compressedFiles = await Promise.all(
+        Array.from(files).map((file) => imageCompression(file, options))
+      )
+      setNewEntry((prev) => ({ ...prev, photos: [...prev.photos, ...compressedFiles] }))
+    } catch (error) {
+      console.error("Error compressing images:", error)
+    } finally {
+      setIsCompressing(false)
+      console.log("Image compression finished.")
+    }
+  }
+
+  const removePhoto = (indexToRemove: number) => {
+    setNewEntry((prev) => ({
+      ...prev,
+      photos: prev.photos.filter((_, index) => index !== indexToRemove),
+    }))
   }
 
   const getEventIcon = (type: string) => {
@@ -120,18 +234,66 @@ export default function EdenLogAI() {
     setNewEntry((prev) => ({ ...prev, notes: prev.notes + `${prefix}${text}` }))
   }
 
+  // API interaction for Quick Details
+  useEffect(() => {
+    const fetchQuickDetails = async () => {
+      try {
+        const response = await fetchWithLogging("http://localhost:8000/quick-details")
+        if (response.ok) {
+          const data = await response.json()
+          if (data.length === 0) {
+            setQuickDetails(defaultQuickTags)
+          } else {
+            const normalized = data.map((it: any) => ({
+              id: it.id,
+              emoji: it.emoji,
+              text: it.text,
+              label: it.text,
+              snippet: it.text, // Assuming snippet is the same as text
+            }))
+            setQuickDetails(normalized)
+          }
+        } else {
+          setQuickDetails(defaultQuickTags)
+        }
+      } catch (error) {
+        console.error("Failed to fetch quick details:", error)
+        setQuickDetails(defaultQuickTags)
+      }
+    }
+    fetchQuickDetails()
+  }, [])
+
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
       <header className="border-b border-border bg-background sticky top-0 z-50">
         <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center justify-center">
+          <div className="flex items-center justify-between">
+            <div className="w-24"></div> {/* Left spacer */}
             <Link href="/" className="flex items-center">
               <h1 className="text-xl font-semibold tracking-tight">Plant Journal</h1>
             </Link>
+            <div className="w-24 flex justify-end">
+              <Link href="/admin">
+                <Button variant="ghost" size="sm">
+                  <Settings className="w-4 h-4 mr-2" />
+                  Admin
+                </Button>
+              </Link>
+            </div>
           </div>
         </div>
       </header>
+
+      <Dialog open={isSuccess} onOpenChange={setIsSuccess}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Success!</DialogTitle>
+            <DialogDescription>Your new journal entry has been created.</DialogDescription>
+          </DialogHeader>
+        </DialogContent>
+      </Dialog>
 
       <div className="container mx-auto px-4 py-6">
         {activeTab === "journal" && null}
@@ -194,15 +356,29 @@ export default function EdenLogAI() {
                         <Camera className="w-4 h-4 mr-2" />
                         Choose Photos
                       </Button>
+                      {isCompressing && <Loader2 className="w-4 h-4 animate-spin" />}
                       <div className="flex items-center gap-2 overflow-x-auto">
-                        {newEntry.photos.map((src, index) => (
-                          <div key={index} className="h-12 w-12 rounded-md overflow-hidden bg-muted shrink-0">
-                            <img src={src} alt={`photo-${index}`} className="h-full w-full object-cover" />
+                        {newEntry.photos.map((file, index) => (
+                          <div key={index} className="relative h-12 w-12 rounded-md overflow-hidden bg-muted shrink-0">
+                            <img
+                              src={URL.createObjectURL(file)}
+                              alt={`photo-${index}`}
+                              className="h-full w-full object-cover"
+                            />
+                            <button
+                              onClick={() => removePhoto(index)}
+                              className="absolute top-0 right-0 bg-black bg-opacity-50 text-white rounded-full p-0.5"
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
                           </div>
                         ))}
                       </div>
                     </div>
-                    <Button size="sm" className="px-4">Submit</Button>
+                    <Button size="sm" className="px-4" onClick={handleSubmit} disabled={isLoading}>
+                      {isLoading ? <Loader2 className="animate-spin w-4 h-4 mr-2" /> : null}
+                      Submit
+                    </Button>
                   </div>
                 </div>
                 {/* Quick details subsection (moved inside the Create New Entry card) */}
@@ -212,16 +388,16 @@ export default function EdenLogAI() {
                   </div>
                   <div className="px-4 pb-4 pt-3">
                     <div className="flex flex-wrap gap-3">
-                      {quickTags.map((tag) => (
+                      {quickDetails.map((tag) => (
                         <Button
-                          key={tag.key}
+                          key={tag.id ?? tag.key ?? tag.text}
                           variant="outline"
                           size="sm"
                           className="rounded-md bg-transparent"
-                          onClick={() => insertQuickSnippet(tag.snippet, tag.emoji, tag.label)}
+                          onClick={() => insertQuickSnippet(tag.snippet ?? tag.text ?? "", tag.emoji, tag.text)}
                         >
                           <span className="mr-2">{tag.emoji}</span>
-                          {tag.label}
+                          {tag.text}
                         </Button>
                       ))}
                     </div>
@@ -245,25 +421,25 @@ export default function EdenLogAI() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  {mockEntries.slice(0, 2).map((entry) => (
+                  {journalEntries.slice(0, 2).map((entry) => (
                     <div
                       key={entry.id}
                       className="flex items-center gap-4 p-3 rounded-md border hover:bg-muted/50 transition-colors"
                     >
                       <Avatar className="w-12 h-12">
-                        <AvatarImage src={entry.photos[0] || "/placeholder.svg"} alt={entry.plant} />
-                        <AvatarFallback>{getEventIcon(entry.type)}</AvatarFallback>
+                        <AvatarImage src={entry.image_urls?.[0] || "/placeholder.svg"} alt={entry.plant_name} />
+                        <AvatarFallback>{getEventIcon(entry.event_type)}</AvatarFallback>
                       </Avatar>
                       <div className="flex-1">
                         <div className="flex items-center gap-2 mb-1">
-                          <span className="font-semibold">{entry.plant}</span>
-                          <Badge variant="secondary" className={getEventColor(entry.type)}>
-                            {entry.type}
+                          <span className="font-semibold">{entry.plant_name}</span>
+                          <Badge variant="secondary" className={getEventColor(entry.event_type)}>
+                            {entry.event_type}
                           </Badge>
                         </div>
                         <p className="text-sm text-muted-foreground line-clamp-1">{entry.notes}</p>
                       </div>
-                      <div className="text-sm text-muted-foreground">{entry.date}</div>
+                      <div className="text-sm text-muted-foreground">{new Date(entry.date).toLocaleDateString()}</div>
                     </div>
                   ))}
                 </div>
@@ -274,33 +450,33 @@ export default function EdenLogAI() {
           {/* Garden Feed Tab */}
           <TabsContent value="feed" className="space-y-6">
             <div className="grid gap-6">
-              {mockEntries.map((entry) => (
+              {journalEntries.map((entry) => (
                 <Card key={entry.id} className="overflow-hidden">
                   <CardHeader className="pb-3">
                     <div className="flex items-start justify-between">
                       <div className="flex items-center gap-3">
                         <Avatar className="w-12 h-12">
-                          <AvatarImage src={entry.photos[0] || "/placeholder.svg"} alt={entry.plant} />
-                          <AvatarFallback>{getEventIcon(entry.type)}</AvatarFallback>
+                          <AvatarImage src={entry.image_urls?.[0] || "/placeholder.svg"} alt={entry.plant_name} />
+                          <AvatarFallback>{getEventIcon(entry.event_type)}</AvatarFallback>
                         </Avatar>
                         <div>
-                          <CardTitle className="text-lg font-semibold">{entry.plant}</CardTitle>
+                          <CardTitle className="text-lg font-semibold">{entry.plant_name}</CardTitle>
                           <div className="flex items-center gap-2 mt-1">
-                            <Badge variant="secondary" className={getEventColor(entry.type)}>
-                              {entry.type}
+                            <Badge variant="secondary" className={getEventColor(entry.event_type)}>
+                              {entry.event_type}
                             </Badge>
-                            {entry.quantity && <Badge variant="outline">{entry.quantity}</Badge>}
+                            {/* {entry.quantity && <Badge variant="outline">{entry.quantity}</Badge>} */}
                           </div>
                         </div>
                       </div>
                       <div className="text-right text-sm text-muted-foreground">
                         <div className="flex items-center gap-1 mb-1">
                           <Calendar className="w-3 h-3" />
-                          {entry.date}
+                          {new Date(entry.date).toLocaleDateString()}
                         </div>
                         <div className="flex items-center gap-1">
                           <Sun className="w-3 h-3" />
-                          {entry.weather.temp}
+                          {entry.weather}
                         </div>
                       </div>
                     </div>
@@ -308,11 +484,11 @@ export default function EdenLogAI() {
                   <CardContent className="space-y-4">
                     <p className="text-foreground leading-relaxed">{entry.notes}</p>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                      {entry.photos.map((photo, index) => (
+                      {entry.image_urls?.map((photo, index) => (
                         <div key={index} className="aspect-square rounded-md overflow-hidden bg-muted">
                           <img
                             src={photo || "/placeholder.svg"}
-                            alt={`${entry.plant} ${entry.type}`}
+                            alt={`${entry.plant_name} ${entry.event_type}`}
                             className="w-full h-full object-cover"
                           />
                         </div>
@@ -321,11 +497,11 @@ export default function EdenLogAI() {
                     <div className="flex items-center gap-4 pt-2 text-sm text-muted-foreground">
                       <div className="flex items-center gap-1">
                         <Thermometer className="w-3 h-3" />
-                        {entry.weather.temp}
+                        {/* {entry.weather.temp} */}
                       </div>
                       <div className="flex items-center gap-1">
                         <Sun className="w-3 h-3" />
-                        {entry.weather.condition}
+                        {/* {entry.weather.condition} */}
                       </div>
                       <div className="flex items-center gap-1">
                         <MapPin className="w-3 h-3" />
@@ -342,7 +518,7 @@ export default function EdenLogAI() {
           <TabsContent value="plants" className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {plantStats.map((plant, index) => (
-                <Card>
+                <Card key={plant.name}>
                   <CardHeader className="pb-3">
                     <div className="flex items-center justify-between">
                       <CardTitle className="text-lg">{plant.name}</CardTitle>

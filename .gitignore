@@ -1,0 +1,41 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+backend/venv/
+
+# Test and cache files
+.pytest_cache/
+htmlcov/
+.mypy_cache/
+.tox/
+
+# Node.js
+node_modules/
+.next/
+out/
+build/
+coverage/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Environment variables - contains secrets
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.env
+
+# Operating System
+.DS_Store
+Thumbs.db
+
+# Editor/Tooling directories
+.vscode/
+.idea/
+.cursor/
