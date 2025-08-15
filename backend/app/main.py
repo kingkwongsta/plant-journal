@@ -46,6 +46,7 @@ class JournalEntry(BaseModel):
     weather: Optional[str] = None
     humidity: Optional[float] = None
     event_type: str # harvest, bloom, snapshot
+    quantity: Optional[int] = None # For harvest events
 
 # Pydantic model for updating a journal entry (all fields optional)
 class UpdateJournalEntry(BaseModel):
@@ -57,6 +58,7 @@ class UpdateJournalEntry(BaseModel):
     weather: Optional[str] = None
     humidity: Optional[float] = None
     event_type: Optional[str] = None
+    quantity: Optional[int] = None
 
 # Pydantic model for text input
 class JournalText(BaseModel):
@@ -137,6 +139,7 @@ def create_journal_from_text(journal_text: JournalText):
         - weather (string, optional)
         - humidity (float, optional)
         - event_type (string, one of: 'harvest', 'bloom', 'snapshot')
+        - quantity (integer, optional, only for harvest events, e.g., 3 for 3 harvested items)
 
         Text: "{journal_text.text}"
 
