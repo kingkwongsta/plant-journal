@@ -3,6 +3,18 @@ from google.cloud import firestore
 from pydantic import BaseModel
 from typing import List, Optional
 from datetime import datetime
+import os
+import openai
+import json
+from dotenv import load_dotenv
+
+load_dotenv()
+
+# Initialize OpenAI client for OpenRouter
+client = openai.OpenAI(
+  base_url="https://openrouter.ai/api/v1",
+  api_key=os.getenv("OPENROUTER_API_KEY"),
+)
 
 # Initialize FastAPI app
 app = FastAPI()
@@ -32,6 +44,10 @@ class UpdateJournalEntry(BaseModel):
     weather: Optional[str] = None
     humidity: Optional[float] = None
     event_type: Optional[str] = None
+
+# Pydantic model for text input
+class JournalText(BaseModel):
+    text: str
 
 @app.get("/")
 def read_root():
@@ -92,5 +108,49 @@ def update_journal_entry(entry_id: str, entry: UpdateJournalEntry):
         # Use exclude_unset=True to only update fields that are provided
         doc_ref.update(entry.dict(exclude_unset=True))
         return {"status": "success", "entry_id": entry_id}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+@app.post("/journal/from-text")
+def create_journal_from_text(journal_text: JournalText):
+    try:
+        prompt = f"""
+        Extract the following information from the text and return it as a JSON object:
+        - plant_name (string)
+        - plant_variety (string)
+        - date (datetime in ISO 8601 format, assume today if not specified)
+        - notes (string)
+        - image_urls (list of strings, optional)
+        - weather (string, optional)
+        - humidity (float, optional)
+        - event_type (string, one of: 'harvest', 'bloom', 'snapshot')
+
+        Text: "{journal_text.text}"
+
+        JSON Output:
+        """
+
+        completion = client.chat.completions.create(
+            model="openai/gpt-5-nano",
+            messages=[
+                {
+                    "role": "user",
+                    "content": prompt,
+                },
+            ],
+            response_format={"type": "json_object"},
+        )
+        
+        structured_data = json.loads(completion.choices[0].message.content)
+
+        # You might want to add validation here to ensure the structured_data
+        # matches the JournalEntry model before saving.
+        # For now, we'll save it directly.
+
+        doc_ref = db.collection(u'journal_entries').document()
+        doc_ref.set(structured_data)
+        
+        return {"status": "success", "entry_id": doc_ref.id, "data": structured_data}
+
     except Exception as e:
         return {"status": "error", "message": str(e)}
